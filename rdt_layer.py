@@ -15,6 +15,7 @@ class RDTLayer(object):
     receiveChannel: Optional[UnreliableChannel]         # the channel to receive data through
     dataToSend: str                                     # the data to send
     currentIteration: int                               # used for segment 'timeouts'
+
     # Add items as needed
 
     def __init__(self):
@@ -46,13 +47,9 @@ class RDTLayer(object):
         """
         Called by main to get the currently received and buffered string data, in order
         """
-        # ############################################################################################################ #
         # Identify the data that has been received...
-
-        print('getDataReceived(): Complete this...')
-
-        # ############################################################################################################ #
-        return ""
+        print('getDataReceived():' + self.dataToSend)
+        return self.dataToSend
 
     def processData(self):
         """
