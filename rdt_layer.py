@@ -1,4 +1,6 @@
 from segment import Segment
+from unreliable import UnreliableChannel
+from typing import Optional
 
 class RDTLayer(object):
     """
@@ -6,13 +8,13 @@ class RDTLayer(object):
     channel.
     """
 
-    DATA_LENGTH = 4 # in characters                     # The length of the string data that will be sent per packet...
-    FLOW_CONTROL_WIN_SIZE = 15 # in characters          # Receive window size for flow-control
+    DATA_LENGTH = 4 # in characters                     # length of string data sent per packet
+    FLOW_CONTROL_WIN_SIZE = 15 # in characters          # receive window size for flow-control
 
-    sendChannel = None
-    receiveChannel = None
-    dataToSend = ''
-    currentIteration = 0                                # Use this for segment 'timeouts'
+    sendChannel: Optional[UnreliableChannel]            # the channel to send data through
+    receiveChannel: Optional[UnreliableChannel]         # the channel to receive data through
+    dataToSend: str                                     # the data to send
+    currentIteration: int                               # used for segment 'timeouts'
     # Add items as needed
 
     def __init__(self):
