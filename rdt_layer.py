@@ -37,7 +37,7 @@ class RDTLayer(object):
         """
         self.receiveChannel = channel
 
-    def setDataToSend(self,data):
+    def setDataToSend(self, data):
         """
         Called by main to set the string data to send
         """
