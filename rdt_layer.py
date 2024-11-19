@@ -305,10 +305,23 @@ class RDTLayer(object):
                 if (self.ackCount < len(self.dataToSend) and self.sentData == len(self.dataToSend)):
                     self.currentTimeouts += 1
 
+    def _calculateBounds(self, seqNum):
+        """
+        Deturmine if sequence number aligns with the start of the packet
+        & calculate the upper & lower bounds accordingly.
+        """
+        # does sequence number corresponds to beginning of a complete 4-character packet?
+        isComplete = (seqNum - 1) % self.DATA_LENGTH == 0
+
+        # compute bounds based on completeness
+        lowerBound = seqNum - 1
+        upperBound = lowerBound + (4 if isComplete else 3)
+
+        return isComplete, lowerBound, min(upperBound, len(self.dataToSend))
+
     def _retransmitSegment(self):
         """
-        Handles timeouts for segments that
-        should be selectively retransmitted
+        Handles selective retransmission of timed-out packets
         """
         data = ""
         x = 1
@@ -373,6 +386,9 @@ class RDTLayer(object):
         self.sendChannel.send(segmentSend)
 
     def _sendNewSegment(self):
+        """
+        sends new data segments into
+        """
         seqnum = self.seqCount
         lowerBound = self.sentData
 
