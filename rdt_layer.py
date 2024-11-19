@@ -114,119 +114,18 @@ class RDTLayer(object):
 
         # client mode
         if not self.isServer:
-            # Ensure that only 15 characters of data are sent in one pipeline
-            while(self.flowCheck < self.FLOW_CONTROL_WIN_SIZE):
-                segmentSend = Segment()
+            # flow control ensures that only 15 characters of data are sent in a pipeline
+            while (self.flowCheck < self.FLOW_CONTROL_WIN_SIZE):
 
-                # 3 or 4 characters to be sent
-                data = ""
-                # Number of characters sent
-                sentChars = 0
-
-                # Check if a segment has timed out so it can be selectively retransmitted
                 if (self.currentTimeouts > 0):
+                    # timeout handling
+                    self._retransmitSegment()
 
-                    x = 1
-                    # Checks whether to send a full packet of 4 characters or just 3
-                    isComplete = False
-                    seqnum = self.ackCount
-
-                    # Use the seqnum to decide whether to send complete packets or not
-                    while (x < len(self.dataToSend) + 1):
-                        if (x == seqnum):
-                            isComplete = True
-                            break
-
-                        x += self.DATA_LENGTH
-                        if (x == seqnum):
-                            isComplete = True
-                            break
-
-                        x += self.DATA_LENGTH
-                        if (x == seqnum):
-                            isComplete = True
-                            break
-
-                        x += self.DATA_LENGTH
-                        if (x == seqnum):
-                            break
-
-                        x += self.DATA_LENGTH - 1
-
-                    if isComplete:
-                        lowerBound = seqnum - 1
-                        upperBound = seqnum + 3
-
-                        # increment flow-control checker
-                        self.flowCheck += 4
-
-                    else:
-                        lowerBound = seqnum - 1
-                        upperBound = seqnum + 2
-
-                        # increment flow-control checker
-                        self.flowCheck += 3
-
-                    # ensure that the string index will not be out of range
-                    while (upperBound > len(self.dataToSend)):
-                        upperBound -= 1
-
-                    # take 3 or 4 chars to send
-                    for i in range(lowerBound, upperBound):
-                        data += self.dataToSend[i]
-
-                    # reset timeout timer
-                    self.currentTimeouts = 0
-
-                    # display sending segment
-                    segmentSend.setData(seqnum,data)
-                    print("Retransmitting segment: ", segmentSend.to_string())
-
-                    # use the unreliable sendChannel to send the segment
-                    self.sendChannel.send(segmentSend)
-
-                # send new segments
                 elif (self.sentData < len(self.dataToSend)):
-                    seqnum = self.seqCount
-                    lowerBound = self.sentData
+                    self._sendNewSegment()
 
-                    self.packetNum += 1
-
-                    # send 3 characters of data for every 4th new packet
-                    if (self.packetNum == 4):
-                        self.seqCount += self.DATA_LENGTH - 1
-                        upperBound = self.sentData + self.DATA_LENGTH - 1
-                        self.packetNum = 0
-
-                    # send the complete 4 characters
-                    else:
-                        self.seqCount += self.DATA_LENGTH
-                        upperBound = self.sentData + self.DATA_LENGTH
-
-                    # prevent index errors
-                    while (upperBound > len(self.dataToSend)):
-                        upperBound -= 1
-
-                    # take 3 or 4 characters to send
-                    for i in range(lowerBound, upperBound):
-                        data += self.dataToSend[i]
-                        sentChars += 1
-
-                    # increment total data sent with the amount that was just sent
-                    self.sentData += sentChars
-
-                    # increment flow-control checker
-                    self.flowCheck += sentChars
-
-                    # display sending segment
-                    segmentSend.setData(seqnum,data)
-                    print("Sending segment: ", segmentSend.to_string())
-
-                    # use unreliable send channel to transmit segment
-                    self.sendChannel.send(segmentSend)
-
-                # if nothing to send, close flow-control window
                 else:
+                    # nothing to send, close flow-control window
                     self.flowCheck = self.FLOW_CONTROL_WIN_SIZE
 
             # reset flow-control checker
@@ -405,6 +304,118 @@ class RDTLayer(object):
 
                 if (self.ackCount < len(self.dataToSend) and self.sentData == len(self.dataToSend)):
                     self.currentTimeouts += 1
+
+    def _retransmitSegment(self):
+        """
+        Handles timeouts for segments that
+        should be selectively retransmitted
+        """
+        data = ""
+        x = 1
+        # checks whether to send a full packet of 4 characters or just 3
+        isComplete = False
+        seqnum = self.ackCount
+
+        # Use the seqnum to decide whether to send complete packets or not
+        while (x < len(self.dataToSend) + 1):
+            if (x == seqnum):
+                isComplete = True
+                break
+
+            x += self.DATA_LENGTH
+            if (x == seqnum):
+                isComplete = True
+                break
+
+            x += self.DATA_LENGTH
+            if (x == seqnum):
+                isComplete = True
+                break
+
+            x += self.DATA_LENGTH
+            if (x == seqnum):
+                break
+
+            x += self.DATA_LENGTH - 1
+
+        if isComplete:
+            lowerBound = seqnum - 1
+            upperBound = seqnum + 3
+
+            # increment flow-control checker
+            self.flowCheck += 4
+
+        else:
+            lowerBound = seqnum - 1
+            upperBound = seqnum + 2
+
+            # increment flow-control checker
+            self.flowCheck += 3
+
+        # ensure that the string index will not be out of range
+        while (upperBound > len(self.dataToSend)):
+            upperBound -= 1
+
+        # take 3 or 4 chars to send
+        for i in range(lowerBound, upperBound):
+            data += self.dataToSend[i]
+
+        # reset timeout timer
+        self.currentTimeouts = 0
+
+        # display sending segment
+        segmentSend = Segment()
+
+        segmentSend.setData(seqnum, data)
+        print("Retransmitting segment: ", segmentSend.to_string())
+
+        # use the unreliable sendChannel to send the segment
+        self.sendChannel.send(segmentSend)
+
+    def _sendNewSegment(self):
+        seqnum = self.seqCount
+        lowerBound = self.sentData
+
+        self.packetNum += 1
+
+        # send 3 characters of data for every 4th new packet
+        if (self.packetNum == 4):
+            self.seqCount += self.DATA_LENGTH - 1
+            upperBound = self.sentData + self.DATA_LENGTH - 1
+            self.packetNum = 0
+
+        # send the complete 4 characters
+        else:
+            self.seqCount += self.DATA_LENGTH
+            upperBound = self.sentData + self.DATA_LENGTH
+
+        # prevent index errors
+        while (upperBound > len(self.dataToSend)):
+            upperBound -= 1
+
+        # 3 or 4 characters to be sent
+        data = ""
+
+        # Number of characters sent
+        sentChars = 0
+
+        for i in range(lowerBound, upperBound):
+            data += self.dataToSend[i]
+            sentChars += 1
+
+        # increment total data sent with the amount that was just sent
+        self.sentData += sentChars
+
+        # increment flow-control checker
+        self.flowCheck += sentChars
+
+        # display sending segment
+        segmentSend = Segment()
+        segmentSend.setData(seqnum,data)
+        print("Sending segment: ", segmentSend.to_string())
+
+        # use unreliable send channel to transmit segment
+        self.sendChannel.send(segmentSend)
 
     @property
     def countSegmentTimeouts(self):
