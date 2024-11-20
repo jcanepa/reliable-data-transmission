@@ -80,39 +80,12 @@ class RDTLayer(object):
         """
         Manages Segment sending tasks
         """
-        # PROVIDED CODE START
-        # segmentSend = Segment()
-
-        # ############################################################################################################ #
-        # print('processSend(): Complete this...')
-
-        # You should pipeline segments to fit the flow-control window
-        # The flow-control window is the constant RDTLayer.FLOW_CONTROL_WIN_SIZE
-        # The maximum data that you can send in a segment is RDTLayer.DATA_LENGTH
-        # These constants are given in # characters
-
-        # Somewhere in here you will be creating data segments to send.
-        # The data is just part of the entire string that you are trying to send.
-        # The seqnum is the sequence number for the segment (in character number, not bytes)
-
-        # seqnum = "0"
-        # data = "x"
-
-        # ############################################################################################################ #
-        # Display sending segment
-        # segmentSend.setData(seqnum,data)
-        # print("Sending segment: ", segmentSend.to_string())
-
-        # Use the unreliable sendChannel to send the segment
-        # self.sendChannel.send(segmentSend)
-        # PROVIDED CODE END
-
-        # server mode
         if self.dataToSend == '':
+            # enter "server mode"
             self.isServer = True
             return
 
-        # client mode
+        # data to send in "client mode"
         if not self.isServer:
             # flow control ensures that only 15 characters of data are sent in a pipeline
             while (self.flowIndex < self.FLOW_CONTROL_WIN_SIZE):
@@ -133,41 +106,13 @@ class RDTLayer(object):
 
     def processReceiveAndSendRespond(self):
         """
-        Manages Segment receive tasks
+        Manages segment receive tasks
         """
-        # segmentAck = Segment()                  # Segment acknowledging packet(s) received
-
-        # This call returns a list of incoming segments (see Segment class)...
-        # listIncomingSegments = self.receiveChannel.receive()
-
-        # ############################################################################################################ #
-        # What segments have been received?
-        # How will you get them back in order?
-        # This is where a majority of your logic will be implemented
-        # print('processReceive(): Complete this...')
-
-        # ############################################################################################################ #
-        # How do you respond to what you have received?
-        # How can you tell data segments apart from ack segemnts?
-        # print('processReceive(): Complete this...')
-
-        # Somewhere in here you will be setting the contents of the ack segments to send.
-        # The goal is to employ cumulative ack, just like TCP does...
-        # acknum = "0"
-
-        # ############################################################################################################ #
-        # Display response segment
-        # segmentAck.setAck(acknum)
-        # print("Sending ack: ", segmentAck.to_string())
-
-        # Use the unreliable sendChannel to send the ack packet
-        # self.sendChannel.send(segmentAck)
-
         acknum = -1
 
         listIncomingSegments = self.receiveChannel.receive()
 
-        #  server mode
+        #  enter "server mode"
         if self.isServer:
             listIncomingSegments.sort(key=lambda x: x.seqnum)
 
@@ -175,8 +120,9 @@ class RDTLayer(object):
             uncorruptedSegs = []
 
             for i in listIncomingSegments:
-                # data that contains an 'X' is corrupted and should be discarded
+                # data containing an 'X' is corrupted and should be discarded
                 if 'X' not in i.payload:
+                    # previously untransmitted data
                     if i not in self.transmittedPackets:
                         self.transmittedPackets.append(i)
                     uncorruptedSegs.append(i)
@@ -187,24 +133,21 @@ class RDTLayer(object):
             for i in uncorruptedSegs:
                 listIncomingSegments.append(i)
 
-            # sequence numbers successfully received by the server
-            # prevents duplicates from being added to uncorrupted packets
             cachedSeqNums = []
             uncorruptedPackets = []
 
             # sort segments based on sequence number
             self.transmittedPackets.sort(key=lambda x: x.seqnum)
 
-            # transfer only unique packets to list of uncorrupted packets
+            # store only unique packets
             for i in self.transmittedPackets:
                 if (i.seqnum not in cachedSeqNums):
                     cachedSeqNums.append(i.seqnum)
                     uncorruptedPackets.append(i.payload)
 
-            # empty current data to send
+            # reset then load data to send
             self.dataToSend = ""
 
-            # finalize data to send
             for i in uncorruptedPackets:
                 self.dataToSend += i
 
@@ -220,15 +163,17 @@ class RDTLayer(object):
                     self.currentAck += len(i.payload)
                     acknum = self.currentAck
 
-                # unexpected segment, start timeout timer
+                # unexpected segment, start timer
                 else:
                     segmentAck.startIteration = 1
 
-                # next expected segment has already been received, set ack to next expected (unreceived) segment
+                # next expected segment has already been received
+                # set ack to next expected (unreceived) segment
                 if (acknum in self.transmittedSeqNums):
                     x = 1
                     uncachedSeq = 0
                     self.transmittedSeqNums.sort()
+
                     while (x != self.transmittedSeqNums[-1]):
 
                         x += self.DATA_LENGTH
