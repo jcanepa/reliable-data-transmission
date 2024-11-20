@@ -17,11 +17,11 @@ class RDTLayer(object):
     currentIteration: int                               # used for segment 'timeouts'
     # added by @jcanepa
     currentTimeouts: int                                # current segment timeout iteration
-    sentData: int                                       # number of characters sent
-    seqCount: int                                       # tracks current sequence number
-    ackCount: int                                       # tracks current acknowledgement number
+    sentCount: int                                      # number of characters sent
+    currentSeqenceNo: int                               # tracks current sequence number
+    currentAck: int                                     # tracks current acknowledgement number
     cumulativeAck: int                                  # used for cumulative ack
-    flowCheck: int                                      # ensures pipeline segments fit within flow-control window
+    flowIndex: int                                      # ensures pipeline segments fit within flow-control window
     packetNum: int                                      # track the current packet number in the pipeline
     isServer: bool                                      # differentiate between client and server instances
     transmittedPackets: list                            # packets successfully received by the server
@@ -34,11 +34,11 @@ class RDTLayer(object):
         self.currentIteration = 0
         # added by @jcanepa
         self.currentTimeouts = 0
-        self.sentData = 0
-        self.seqCount = 1
-        self.ackCount = 1
+        self.sentCount = 0
+        self.currentSeqenceNo = 1
+        self.currentAck = 1
         self.cumulativeAck = 1
-        self.flowCheck = 0
+        self.flowIndex = 0
         self.packetNum = 0
         self.isServer = False
         self.transmittedPackets = []
@@ -115,21 +115,21 @@ class RDTLayer(object):
         # client mode
         if not self.isServer:
             # flow control ensures that only 15 characters of data are sent in a pipeline
-            while (self.flowCheck < self.FLOW_CONTROL_WIN_SIZE):
+            while (self.flowIndex < self.FLOW_CONTROL_WIN_SIZE):
 
                 if (self.currentTimeouts > 0):
-                    # timeout handling
+                    # handle timeouts
                     self._retransmitSegment()
 
-                elif (self.sentData < len(self.dataToSend)):
+                elif (self.sentCount < len(self.dataToSend)):
                     self._sendNewSegment()
 
                 else:
                     # nothing to send, close flow-control window
-                    self.flowCheck = self.FLOW_CONTROL_WIN_SIZE
+                    self.flowIndex = self.FLOW_CONTROL_WIN_SIZE
 
-            # reset flow-control checker
-            self.flowCheck = 0
+            # reset index
+            self.flowIndex = 0
 
     def processReceiveAndSendRespond(self):
         """
@@ -212,13 +212,13 @@ class RDTLayer(object):
                 # segment acknowledging packet(s) received
                 segmentAck = Segment()
 
-                acknum = self.ackCount
+                acknum = self.currentAck
 
                 # expected segment, store its sequence number and increment ack number accordingly
                 if (i.seqnum == acknum):
                     self.transmittedSeqNums.append(i.seqnum)
-                    self.ackCount += len(i.payload)
-                    acknum = self.ackCount
+                    self.currentAck += len(i.payload)
+                    acknum = self.currentAck
 
                 # unexpected segment, start timeout timer
                 else:
@@ -257,11 +257,11 @@ class RDTLayer(object):
 
                     # set ack to cumulative ack if all previous data have been received
                     if (uncachedSeq == 0):
-                        self.ackCount = self.cumulativeAck
+                        self.currentAck = self.cumulativeAck
                         acknum = self.cumulativeAck
 
                     else:
-                        self.ackCount = x
+                        self.currentAck = x
                         acknum = x
 
                 # increment cumulative ack
@@ -282,7 +282,7 @@ class RDTLayer(object):
                 segmentAck = Segment()
 
                 segmentAck.startIteration = 1
-                acknum = self.ackCount
+                acknum = self.currentAck
 
                 # display response segment
                 segmentAck.setAck(acknum)
@@ -299,18 +299,18 @@ class RDTLayer(object):
 
             # process received packets and find out current ack number and if a segment needs to be resent
             for i in listIncomingSegments:
-                self.ackCount = i.acknum
+                self.currentAck = i.acknum
                 self.currentTimeouts += i.startIteration
 
-                if (self.ackCount < len(self.dataToSend) and self.sentData == len(self.dataToSend)):
+                if (self.currentAck < len(self.dataToSend) and self.sentCount == len(self.dataToSend)):
                     self.currentTimeouts += 1
 
     def _calculateBounds(self, seqNum):
         """
-        Deturmine if sequence number aligns with the start of the packet
-        & calculate the upper & lower bounds accordingly.
+        Deturmine if sequence number aligns with the start
+        of the packet, calculate the upper & lower bounds accordingly.
         """
-        # does sequence number corresponds to beginning of a complete 4-character packet?
+        # sequence number corresponds to beginning of a complete 4-character packet
         isComplete = (seqNum - 1) % self.DATA_LENGTH == 0
 
         # compute bounds based on completeness
@@ -325,9 +325,10 @@ class RDTLayer(object):
         """
         data = ""
         x = 1
+
         # checks whether to send a full packet of 4 characters or just 3
         isComplete = False
-        seqnum = self.ackCount
+        seqnum = self.currentAck
 
         # Use the seqnum to decide whether to send complete packets or not
         while (x < len(self.dataToSend) + 1):
@@ -356,14 +357,14 @@ class RDTLayer(object):
             upperBound = seqnum + 3
 
             # increment flow-control checker
-            self.flowCheck += 4
+            self.flowIndex += 4
 
         else:
             lowerBound = seqnum - 1
             upperBound = seqnum + 2
 
             # increment flow-control checker
-            self.flowCheck += 3
+            self.flowIndex += 3
 
         # ensure that the string index will not be out of range
         while (upperBound > len(self.dataToSend)):
@@ -389,21 +390,21 @@ class RDTLayer(object):
         """
         sends new data segments into
         """
-        seqnum = self.seqCount
-        lowerBound = self.sentData
+        seqnum = self.currentSeqenceNo
+        lowerBound = self.sentCount
 
         self.packetNum += 1
 
         # send 3 characters of data for every 4th new packet
         if (self.packetNum == 4):
-            self.seqCount += self.DATA_LENGTH - 1
-            upperBound = self.sentData + self.DATA_LENGTH - 1
+            self.currentSeqenceNo += self.DATA_LENGTH - 1
+            upperBound = self.sentCount + self.DATA_LENGTH - 1
             self.packetNum = 0
 
         # send the complete 4 characters
         else:
-            self.seqCount += self.DATA_LENGTH
-            upperBound = self.sentData + self.DATA_LENGTH
+            self.currentSeqenceNo += self.DATA_LENGTH
+            upperBound = self.sentCount + self.DATA_LENGTH
 
         # prevent index errors
         while (upperBound > len(self.dataToSend)):
@@ -420,10 +421,10 @@ class RDTLayer(object):
             sentChars += 1
 
         # increment total data sent with the amount that was just sent
-        self.sentData += sentChars
+        self.sentCount += sentChars
 
         # increment flow-control checker
-        self.flowCheck += sentChars
+        self.flowIndex += sentChars
 
         # display sending segment
         segmentSend = Segment()
