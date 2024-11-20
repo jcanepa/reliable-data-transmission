@@ -22,7 +22,7 @@ class RDTLayer(object):
     currentAck: int                                     # tracks current acknowledgement number
     cumulativeAck: int                                  # used for cumulative ack
     flowIndex: int                                      # ensures pipeline segments fit within flow-control window
-    packetNum: int                                      # track the current packet number in the pipeline
+    currentPacket: int                                  # track the current packet number in the pipeline
     isServer: bool                                      # differentiate between client and server instances
     transmittedPackets: list                            # packets successfully received by the server
     transmittedSeqNums: list                            # sequence numbers successfully received by the server
@@ -39,7 +39,7 @@ class RDTLayer(object):
         self.currentAck = 1
         self.cumulativeAck = 1
         self.flowIndex = 0
-        self.packetNum = 0
+        self.currentPacket = 0
         self.isServer = False
         self.transmittedPackets = []
         self.transmittedSeqNums = []
@@ -393,13 +393,13 @@ class RDTLayer(object):
         seqnum = self.currentSeqenceNo
         lowerBound = self.sentCount
 
-        self.packetNum += 1
+        self.currentPacket += 1
 
         # send 3 characters of data for every 4th new packet
-        if (self.packetNum == 4):
+        if (self.currentPacket == 4):
             self.currentSeqenceNo += self.DATA_LENGTH - 1
             upperBound = self.sentCount + self.DATA_LENGTH - 1
-            self.packetNum = 0
+            self.currentPacket = 0
 
         # send the complete 4 characters
         else:
