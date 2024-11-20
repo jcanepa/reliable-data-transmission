@@ -16,6 +16,7 @@ class RDTLayer(object):
     dataToSend: str                                     # the data to send
     currentIteration: int                               # used for segment 'timeouts'
     # added by @jcanepa
+    isServer: bool                                      # differentiate between client and server instances
     currentTimeouts: int                                # current segment timeout iteration
     sentCount: int                                      # number of characters sent
     currentSeqenceNo: int                               # tracks current sequence number
@@ -23,7 +24,6 @@ class RDTLayer(object):
     cumulativeAck: int                                  # used for cumulative ack
     flowIndex: int                                      # ensures pipeline segments fit within flow-control window
     currentPacket: int                                  # track the current packet number in the pipeline
-    isServer: bool                                      # differentiate between client and server instances
     transmittedPackets: list                            # packets successfully received by the server
     transmittedSeqNums: list                            # sequence numbers successfully received by the server
 
@@ -107,6 +107,8 @@ class RDTLayer(object):
     def processReceiveAndSendRespond(self):
         """
         Manages segment receive tasks
+
+        Reference: https://github.com/SuperSaiyanAsian/RDTLayer/blob/main/rdt_layer.py#L308
         """
         acknum = -1
 
@@ -151,6 +153,7 @@ class RDTLayer(object):
             for i in uncorruptedPackets:
                 self.dataToSend += i
 
+            # reference: https://github.com/SuperSaiyanAsian/RDTLayer/blob/main/rdt_layer.py#L369
             for i in listIncomingSegments:
                 # segment acknowledging packet(s) received
                 segmentAck = Segment()
@@ -282,16 +285,19 @@ class RDTLayer(object):
                 break
 
             x += self.DATA_LENGTH
+
             if (x == seqnum):
                 isComplete = True
                 break
 
             x += self.DATA_LENGTH
+
             if (x == seqnum):
                 isComplete = True
                 break
 
             x += self.DATA_LENGTH
+
             if (x == seqnum):
                 break
 
